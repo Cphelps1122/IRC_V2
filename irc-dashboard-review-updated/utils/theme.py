@@ -464,26 +464,19 @@ def delta_html(delta: float | None, direction: str = "lower_is_better", referenc
 
 
 def _plain_card_text(value) -> str:
-    """Return readable plain text for KPI cards and prevent leaked HTML/code snippets.
-
-    Streamlit will sometimes show literal HTML fragments if an old helper passes a
-    snippet into a card value/caption. This function strips complete tags and also
-    catches partial fragments like ``<div class=`` so code never appears in the UI.
-    """
+    """Return safe readable text for KPI cards; never show leaked HTML/code."""
     if value is None:
         return ""
     raw = html.unescape(str(value))
     lowered = raw.lower()
-    code_like = any(token in lowered for token in [
-        "<div", "<span", "<style", "<script", "</", "class=", "unsafe_allow_html", "data-testid"
-    ])
-    # Remove complete HTML tags first.
-    text = re.sub(r"<[^>]*>", " ", raw)
-    # Remove any incomplete leftover tag/code fragment such as '<div class=\"sm'.
-    text = re.sub(r"<[^\s]*.*$", " ", text).strip()
-    text = re.sub(r"\s+", " ", text).strip()
-    if code_like and (not text or "class=" in text.lower() or text.strip().startswith("<")):
+    code_tokens = ["<div", "<span", "<style", "<script", "</", "class=", "unsafe_allow_html", "data-testid"]
+    if any(token in lowered for token in code_tokens):
+        # If a helper accidentally passes HTML into a value/caption, hide it entirely
+        # instead of showing a broken snippet such as '<div class="sm...'.
         return ""
+    text = re.sub(r"<[^>]*>", " ", raw)
+    text = re.sub(r"<.*$", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
@@ -508,6 +501,25 @@ def kpi_card(label: str, value: str, previous: str = "", delta: float | None = N
         unsafe_allow_html=True,
     )
 
+
+
+
+def cost_usage_placeholder_card():
+    """Render the Cost / Usage placeholder without any caption HTML path.
+
+    This deliberately avoids kpi_card(caption=...) so a broken HTML fragment can
+    never leak into the card.
+    """
+    st.markdown(
+        """
+        <div class="metric-card metric-card-placeholder">
+            <div class="metric-label">COST / USAGE</div>
+            <div class="metric-value">Select Utility</div>
+            <div class="metric-helper">Choose one utility in the Utility filter.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 def panel_start(title: str, caption: str = ""):
     st.markdown('<div class="panel">', unsafe_allow_html=True)
