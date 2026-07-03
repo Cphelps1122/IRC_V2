@@ -121,13 +121,22 @@ if not cur.empty:
     )
     high["Cost/Treatment"] = np.where(high["treatments"] > 0, high["amount"] / high["treatments"], np.nan)
     if not alerts.empty:
-        status_lookup = alerts.sort_values("Severity").groupby(["Property", "Utility"], as_index=False).first()[["Property", "Utility", "Severity"]]
-        high = high.merge(status_lookup, left_on=["property", "utility"], right_on=["Property", "Utility"], how="left")
+        priority = {"Critical": 3, "Review": 2, "Info": 1, "Normal": 0}
+        status_lookup = alerts[["Property", "Utility", "Severity"]].copy()
+        status_lookup["Priority"] = status_lookup["Severity"].map(priority).fillna(0)
+        status_lookup = (
+            status_lookup.sort_values("Priority", ascending=False)
+            .drop_duplicates(["Property", "Utility"])
+            .rename(columns={"Property": "property", "Utility": "utility", "Severity": "Status"})
+            [["property", "utility", "Status"]]
+        )
+        high = high.merge(status_lookup, on=["property", "utility"], how="left")
     else:
-        high["Severity"] = "Normal"
-    high["Status"] = high["Severity"].fillna("Normal")
+        high["Status"] = "Normal"
+    high["Status"] = high["Status"].fillna("Normal")
     high = high.sort_values(["utility", "amount"], ascending=[True, False]).head(15)
     high = high.rename(columns={"property": "Property", "city": "City", "state": "State", "utility": "Utility", "amount": "Total Cost"})
+    high = high.loc[:, ~high.columns.duplicated()].copy()
     high["Total Cost"] = high["Total Cost"].apply(lambda x: fmt_money(x))
     high["Cost/Treatment"] = high["Cost/Treatment"].apply(lambda x: fmt_money(x, 2))
     compact_table(high, ["Status", "Utility", "Property", "City", "State", "Total Cost", "Cost/Treatment"], max_rows=15)
