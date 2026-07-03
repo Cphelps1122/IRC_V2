@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 from typing import Callable
 
 import pandas as pd
@@ -450,14 +451,30 @@ def delta_html(delta: float | None, direction: str = "lower_is_better", referenc
     return f'<span class="{cls}" style="color:{color} !important; -webkit-text-fill-color:{color} !important; font-weight:950 !important;">{arrow} {abs(float(delta)):.1f}%</span>'
 
 
+def _plain_card_text(value) -> str:
+    """Return readable plain text for KPI cards and prevent leaked HTML/code snippets."""
+    if value is None:
+        return ""
+    text = str(value)
+    # If a helper accidentally sends an HTML snippet into a card, do not render or display code.
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    return text.strip()
+
+
 def kpi_card(label: str, value: str, previous: str = "", delta: float | None = None, caption: str = "", delta_direction: str = "lower_is_better", reference_delta: float | None = None):
-    previous_html = f'<div class="metric-prev">Prev: {html.escape(str(previous))} &nbsp;{delta_html(delta, direction=delta_direction, reference_delta=reference_delta)}</div>' if previous else ""
-    caption_html = f'<div class="small-muted">{html.escape(str(caption))}</div>' if caption else ""
+    label_txt = _plain_card_text(label)
+    value_txt = _plain_card_text(value)
+    previous_txt = _plain_card_text(previous)
+    caption_txt = _plain_card_text(caption)
+
+    previous_html = f'<div class="metric-prev">Prev: {html.escape(previous_txt)} &nbsp;{delta_html(delta, direction=delta_direction, reference_delta=reference_delta)}</div>' if previous_txt else ""
+    caption_html = f'<div class="small-muted">{html.escape(caption_txt)}</div>' if caption_txt else ""
     st.markdown(
         f"""
         <div class="metric-card">
-            <div class="metric-label">{html.escape(str(label))}</div>
-            <div class="metric-value">{html.escape(str(value))}</div>
+            <div class="metric-label">{html.escape(label_txt)}</div>
+            <div class="metric-value">{html.escape(value_txt)}</div>
             {previous_html}
             {caption_html}
         </div>
