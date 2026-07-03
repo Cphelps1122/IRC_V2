@@ -48,7 +48,13 @@ with cols[2]:
     if len(selected_utilities) == 1:
         kpi_card("Cost / Usage", fmt_money(summary["current"]["cost_per_usage"], 4), fmt_money(summary["previous"]["cost_per_usage"], 4), summary["delta_cpu"], selected_utilities[0], delta_direction="lower_is_better")
     else:
-        kpi_card("Cost / Usage", "Select Utility Filter", "", None, "Choose one utility to view cost per usage.")
+        kpi_card(
+            "Cost / Usage",
+            "Select Utility",
+            "",
+            None,
+            "Choose one utility to view cost per usage.",
+        )
 with cols[3]:
     kpi_card("Total Usage", fmt_num(summary["current"]["usage"]), fmt_num(summary["previous"]["usage"]), summary["delta_usage"], delta_direction="treatment_adjusted", reference_delta=summary["delta_treatments"])
 with cols[4]:
