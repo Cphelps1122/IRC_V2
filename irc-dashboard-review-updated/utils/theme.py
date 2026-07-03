@@ -116,9 +116,15 @@ def apply_theme():
             background: linear-gradient(180deg, var(--panel-bg) 0%, var(--panel-bg-2) 100%);
             border: 1px solid var(--border);
             border-radius: 18px;
-            padding: 18px 18px 16px 18px;
+            padding: 16px 16px 14px 16px;
             box-shadow: {t['card_shadow']};
+            height: 132px;
             min-height: 132px;
+            max-height: 132px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
         }}
         .metric-label {{
             color: var(--text-muted) !important;
@@ -133,11 +139,17 @@ def apply_theme():
         }}
         .metric-value {{
             color: var(--text-main) !important;
-            font-size: 1.68rem;
+            font-size: clamp(1.12rem, 1.65vw, 1.68rem);
             font-weight: 900;
-            line-height: 1.12;
-            margin-top: 0.42rem;
-            overflow-wrap: anywhere;
+            line-height: 1.08;
+            margin-top: 0.38rem;
+            overflow-wrap: normal;
+            word-break: normal;
+            max-width: 100%;
+        }}
+        .metric-value.metric-value-small {{
+            font-size: clamp(1.0rem, 1.35vw, 1.34rem);
+            line-height: 1.08;
         }}
         .metric-prev {{
             color: var(--text-muted) !important;
@@ -161,7 +173,7 @@ def apply_theme():
             line-height: 1.22;
         }}
         .panel-caption {{ color: var(--text-muted) !important; font-size: 0.86rem; margin-bottom: 0.8rem; line-height:1.35; }}
-        .small-muted {{ color: var(--text-muted) !important; font-size: 0.86rem; }}
+        .small-muted {{ color: var(--text-muted) !important; font-size: 0.80rem; line-height: 1.22; margin-top: 0.34rem; }}
         .pill {{
             display: inline-flex;
             align-items: center;
@@ -452,14 +464,27 @@ def delta_html(delta: float | None, direction: str = "lower_is_better", referenc
 
 
 def _plain_card_text(value) -> str:
-    """Return readable plain text for KPI cards and prevent leaked HTML/code snippets."""
+    """Return readable plain text for KPI cards and prevent leaked HTML/code snippets.
+
+    Streamlit will sometimes show literal HTML fragments if an old helper passes a
+    snippet into a card value/caption. This function strips complete tags and also
+    catches partial fragments like ``<div class=`` so code never appears in the UI.
+    """
     if value is None:
         return ""
-    text = str(value)
-    # If a helper accidentally sends an HTML snippet into a card, do not render or display code.
-    text = re.sub(r"<[^>]+>", "", text)
-    text = html.unescape(text)
-    return text.strip()
+    raw = html.unescape(str(value))
+    lowered = raw.lower()
+    code_like = any(token in lowered for token in [
+        "<div", "<span", "<style", "<script", "</", "class=", "unsafe_allow_html", "data-testid"
+    ])
+    # Remove complete HTML tags first.
+    text = re.sub(r"<[^>]*>", " ", raw)
+    # Remove any incomplete leftover tag/code fragment such as '<div class=\"sm'.
+    text = re.sub(r"<[^\s]*.*$", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
+    if code_like and (not text or "class=" in text.lower() or text.strip().startswith("<")):
+        return ""
+    return text
 
 
 def kpi_card(label: str, value: str, previous: str = "", delta: float | None = None, caption: str = "", delta_direction: str = "lower_is_better", reference_delta: float | None = None):
@@ -470,11 +495,12 @@ def kpi_card(label: str, value: str, previous: str = "", delta: float | None = N
 
     previous_html = f'<div class="metric-prev">Prev: {html.escape(previous_txt)} &nbsp;{delta_html(delta, direction=delta_direction, reference_delta=reference_delta)}</div>' if previous_txt else ""
     caption_html = f'<div class="small-muted">{html.escape(caption_txt)}</div>' if caption_txt else ""
+    value_class = "metric-value metric-value-small" if len(value_txt) > 13 else "metric-value"
     st.markdown(
         f"""
         <div class="metric-card">
             <div class="metric-label">{html.escape(label_txt)}</div>
-            <div class="metric-value">{html.escape(value_txt)}</div>
+            <div class="{value_class}">{html.escape(value_txt)}</div>
             {previous_html}
             {caption_html}
         </div>
