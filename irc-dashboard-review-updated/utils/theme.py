@@ -545,12 +545,39 @@ def severity_pill(severity: str) -> str:
 
 
 def _html_or_escape(val) -> str:
-    if pd.isna(val):
+    """Safely render table cell values, including duplicate-column Series values.
+
+    Pandas returns a Series when a row has duplicate column names. Calling
+    pd.isna() on that Series causes the ambiguous truth-value error seen on
+    the Geographic View page. This function collapses list/Series-like values
+    to the first meaningful value before checking for missingness.
+    """
+    if isinstance(val, pd.Series):
+        non_empty = [x for x in val.tolist() if not _is_blank_value(x)]
+        val = non_empty[0] if non_empty else None
+    elif isinstance(val, (list, tuple, set)):
+        non_empty = [x for x in list(val) if not _is_blank_value(x)]
+        val = non_empty[0] if non_empty else None
+
+    if _is_blank_value(val):
         return "—"
     s = str(val)
     if s.lstrip().startswith("<span") or s.lstrip().startswith("<div"):
         return s
     return html.escape(s)
+
+
+def _is_blank_value(val) -> bool:
+    if val is None:
+        return True
+    try:
+        if isinstance(val, float) and pd.isna(val):
+            return True
+        if not isinstance(val, (str, bytes)) and pd.isna(val):
+            return True
+    except Exception:
+        pass
+    return str(val).strip() == "" or str(val).strip().lower() in {"nan", "nat", "none"}
 
 
 def compact_table(df: pd.DataFrame, columns: list[str], formatters: dict[str, Callable] | None = None, max_rows: int = 10, empty_message: str = "No records found."):
